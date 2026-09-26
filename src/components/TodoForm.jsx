@@ -1,35 +1,15 @@
 import { useState } from "react";
 import { useMutation } from "@apollo/client/react";
-import { ADD_TODO, GET_TODOS } from "../graphql/todos";
+import { addTodoToCache } from "../apollo/todoCache";
+import { ADD_TODO } from "../graphql/todoMutations";
 
 function TodoForm() {
   const [title, setTitle] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
 
-  const [addTodo, { loading, error }] = useMutation(ADD_TODO, {
+  const [addTodo, { loading, error, reset }] = useMutation(ADD_TODO, {
     update(cache, { data }) {
-      const newTodo = data?.createTodo;
-
-      if (!newTodo) {
-        return;
-      }
-
-      const existingData = cache.readQuery({ query: GET_TODOS });
-      const existingTodos = existingData?.todos?.data ?? [];
-
-      if (!existingData?.todos) {
-        return;
-      }
-
-      cache.writeQuery({
-        query: GET_TODOS,
-        data: {
-          todos: {
-            ...existingData.todos,
-            data: [newTodo, ...existingTodos],
-          },
-        },
-      });
+      addTodoToCache(cache, data?.createTodo);
     },
   });
   const hasMessage = Boolean(validationMessage || error);
@@ -60,8 +40,8 @@ function TodoForm() {
   }
 
   return (
-    <form className="todo-form" onSubmit={handleSubmit}>
-      <label className="sr-only" htmlFor="todo-title">
+    <form className="todo-form" onSubmit={handleSubmit} aria-busy={loading}>
+      <label className="todo-label" htmlFor="todo-title">
         Todo title
       </label>
 
@@ -73,10 +53,15 @@ function TodoForm() {
         onChange={(event) => {
           setTitle(event.target.value);
           setValidationMessage("");
+
+          if (error) {
+            reset();
+          }
         }}
         placeholder="Add a todo..."
         autoComplete="off"
         aria-describedby={hasMessage ? "todo-form-message" : undefined}
+        aria-invalid={hasMessage}
         disabled={loading}
       />
 
@@ -85,12 +70,12 @@ function TodoForm() {
       </button>
 
       {validationMessage && (
-        <p className="todo-mutation-error" id="todo-form-message">
+        <p className="todo-mutation-error" id="todo-form-message" role="alert">
           {validationMessage}
         </p>
       )}
       {error && (
-        <p className="todo-mutation-error" id="todo-form-message">
+        <p className="todo-mutation-error" id="todo-form-message" role="alert">
           Unable to add todo.
         </p>
       )}
