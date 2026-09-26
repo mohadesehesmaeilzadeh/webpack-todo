@@ -1,17 +1,5 @@
 const { gql } = require("@apollo/client");
 
-const GET_TODOS = gql`
-  query GetTodos {
-    todos(options: { paginate: { page: 1, limit: 20 } }) {
-      data {
-        id
-        title
-        completed
-      }
-    }
-  }
-`;
-
 const ADD_TODO = gql`
   mutation AddTodo($title: String!, $completed: Boolean!) {
     createTodo(input: { title: $title, completed: $completed }) {
@@ -22,8 +10,8 @@ const ADD_TODO = gql`
   }
 `;
 
-const UPDATE_TODO = gql`
-  mutation UpdateTodo($id: ID!, $completed: Boolean!) {
+const UPDATE_TODO_COMPLETION = gql`
+  mutation UpdateTodoCompletion($id: ID!, $completed: Boolean!) {
     updateTodo(id: $id, input: { completed: $completed }) {
       id
       title
@@ -41,6 +29,5 @@ const DELETE_TODO = gql`
 module.exports = {
   ADD_TODO,
   DELETE_TODO,
-  GET_TODOS,
-  UPDATE_TODO,
+  UPDATE_TODO_COMPLETION,
 };

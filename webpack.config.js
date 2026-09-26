@@ -2,10 +2,11 @@ const path = require("path");
 const webpack = require("webpack");
 const dotenv = require("dotenv");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
+const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
 
-const env = dotenv.config().parsed || {};
+dotenv.config({ quiet: true });
 
-module.exports = (webpackEnv, argv) => {
+module.exports = (env = {}, argv) => {
   const isProduction = argv.mode === "production";
 
   return {
@@ -15,12 +16,12 @@ module.exports = (webpackEnv, argv) => {
 
     output: {
       path: path.resolve(__dirname, "dist"),
-      filename: isProduction ? "[name].[contenthash].js" : "bundle.js",
-      chunkFilename: isProduction ? "[name].[contenthash].js" : "[name].js",
+      filename: isProduction ? "assets/js/[name].[contenthash:8].js" : "bundle.js",
+      chunkFilename: isProduction ? "assets/js/[name].[contenthash:8].js" : "[name].js",
       clean: true,
     },
 
-    devtool: isProduction ? "source-map" : "eval-source-map",
+    devtool: isProduction ? "hidden-source-map" : "eval-source-map",
 
     resolve: {
       extensions: [".js", ".jsx"],
@@ -33,6 +34,10 @@ module.exports = (webpackEnv, argv) => {
           exclude: /node_modules/,
           use: {
             loader: "babel-loader",
+            options: {
+              cacheDirectory: true,
+              cacheCompression: false,
+            },
           },
         },
         {
@@ -47,17 +52,36 @@ module.exports = (webpackEnv, argv) => {
         template: "./public/index.html",
       }),
       new webpack.DefinePlugin({
-        "process.env.FAKEQL_ENDPOINT": JSON.stringify(env.FAKEQL_ENDPOINT),
+        "process.env.FAKEQL_ENDPOINT": JSON.stringify(process.env.FAKEQL_ENDPOINT),
       }),
+      ...(env.analyze
+        ? [
+            new BundleAnalyzerPlugin({
+              analyzerMode: "static",
+              openAnalyzer: false,
+              reportFilename: "bundle-report.html",
+            }),
+          ]
+        : []),
     ],
 
     optimization: isProduction
       ? {
           minimize: true,
+          moduleIds: "deterministic",
+          chunkIds: "deterministic",
           splitChunks: {
             chunks: "all",
+            cacheGroups: {
+              vendors: {
+                test: /[\\/]node_modules[\\/]/,
+                name: "vendors",
+              },
+            },
           },
-          runtimeChunk: "single",
+          runtimeChunk: {
+            name: "runtime",
+          },
         }
       : {},
 

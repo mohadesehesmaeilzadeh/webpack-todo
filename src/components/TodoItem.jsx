@@ -1,33 +1,21 @@
 import { useMutation } from "@apollo/client/react";
-import { DELETE_TODO, GET_TODOS, UPDATE_TODO } from "../graphql/todos";
+import { removeTodoFromCache, updateTodoInCache } from "../apollo/todoCache";
+import { DELETE_TODO, UPDATE_TODO_COMPLETION } from "../graphql/todoMutations";
 
 function TodoItem({ todo }) {
   const isCompleted = Boolean(todo.completed);
   const statusText = isCompleted ? "Completed" : "Pending";
 
-  const [updateTodo, { loading: isUpdating, error: updateError }] = useMutation(UPDATE_TODO);
+  const [updateTodo, { loading: isUpdating, error: updateError }] = useMutation(
+    UPDATE_TODO_COMPLETION
+  );
   const [deleteTodo, { loading: isDeleting, error: deleteError }] = useMutation(DELETE_TODO, {
     update(cache, { data }) {
       if (!data?.deleteTodo) {
         return;
       }
 
-      const existingData = cache.readQuery({ query: GET_TODOS });
-      const existingTodos = existingData?.todos?.data ?? [];
-
-      if (!existingData?.todos) {
-        return;
-      }
-
-      cache.writeQuery({
-        query: GET_TODOS,
-        data: {
-          todos: {
-            ...existingData.todos,
-            data: existingTodos.filter((cachedTodo) => cachedTodo.id !== todo.id),
-          },
-        },
-      });
+      removeTodoFromCache(cache, todo.id);
     },
   });
 
@@ -41,34 +29,7 @@ function TodoItem({ todo }) {
           completed: nextCompleted,
         },
         update(cache, { data }) {
-          const updatedTodo = data?.updateTodo;
-          const existingData = cache.readQuery({ query: GET_TODOS });
-          const existingTodos = existingData?.todos?.data ?? [];
-
-          if (!existingData?.todos) {
-            return;
-          }
-
-          cache.writeQuery({
-            query: GET_TODOS,
-            data: {
-              todos: {
-                ...existingData.todos,
-                data: existingTodos.map((cachedTodo) => {
-                  if (cachedTodo.id !== todo.id) {
-                    return cachedTodo;
-                  }
-
-                  return {
-                    ...cachedTodo,
-                    ...updatedTodo,
-                    completed: updatedTodo?.completed ?? nextCompleted,
-                    title: updatedTodo?.title ?? cachedTodo.title,
-                  };
-                }),
-              },
-            },
-          });
+          updateTodoInCache(cache, data?.updateTodo);
         },
       });
     } catch {
@@ -89,7 +50,10 @@ function TodoItem({ todo }) {
   }
 
   return (
-    <li className={`todo-item ${isCompleted ? "completed" : "pending"}`}>
+    <li
+      className={`todo-item ${isCompleted ? "completed" : "pending"}`}
+      aria-busy={isUpdating || isDeleting}
+    >
       <label className="todo-check">
         <input
           type="checkbox"
@@ -114,8 +78,16 @@ function TodoItem({ todo }) {
         </button>
       </div>
 
-      {updateError && <p className="todo-mutation-error">Unable to update todo.</p>}
-      {deleteError && <p className="todo-mutation-error">Unable to delete todo.</p>}
+      {updateError && (
+        <p className="todo-mutation-error" role="alert">
+          Unable to update todo.
+        </p>
+      )}
+      {deleteError && (
+        <p className="todo-mutation-error" role="alert">
+          Unable to delete todo.
+        </p>
+      )}
     </li>
   );
 }

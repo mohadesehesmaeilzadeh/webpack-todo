@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+import { NetworkStatus } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import TodoForm from "./components/TodoForm";
-import TodoList from "./components/TodoList";
-import { GET_TODOS } from "./graphql/todos";
+import { GET_TODOS } from "./graphql/todoQueries";
+
+const TodoList = lazy(
+  () => import(/* webpackChunkName: "todo-list" */ "./components/TodoList")
+);
 
 const FILTERS = [
   { label: "All", value: "all" },
@@ -35,11 +39,15 @@ const SAMPLE_TODO_TITLES = {
 
 function App() {
   const [filter, setFilter] = useState("all");
-  const { data, loading, error, refetch } = useQuery(GET_TODOS);
-  const todos = (data?.todos?.data ?? []).map((todo) => ({
+  const { data, loading, error, networkStatus, refetch } = useQuery(GET_TODOS, {
+    notifyOnNetworkStatusChange: true,
+  });
+  const rawTodos = Array.isArray(data?.todos?.data) ? data.todos.data : [];
+  const todos = rawTodos.map((todo) => ({
     ...todo,
     title: SAMPLE_TODO_TITLES[todo.id] ?? todo.title,
   }));
+  const isRetrying = networkStatus === NetworkStatus.refetch;
   const totalCount = todos.length;
   const completedCount = todos.filter((todo) => todo.completed).length;
   const activeCount = totalCount - completedCount;
@@ -67,33 +75,57 @@ function App() {
 
   if (loading) {
     content = (
-      <div className="todo-message todo-loading" role="status">
+      <div className="todo-message todo-loading" role="status" aria-live="polite">
         <span className="loading-spinner" aria-hidden="true" />
-        <span>Loading todos...</span>
+        <span>{isRetrying ? "Trying again..." : "Loading todos..."}</span>
       </div>
     );
   } else if (error) {
     content = (
       <div className="todo-message todo-message-error" role="alert">
         <p>Unable to load todos.</p>
-        <button className="secondary-button" type="button" onClick={() => refetch()}>
-          Try Again
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => refetch()}
+          disabled={isRetrying}
+        >
+          {isRetrying ? "Trying Again..." : "Try Again"}
         </button>
       </div>
     );
   } else if (todos.length === 0) {
-    content = <p className="todo-message">No todos yet.</p>;
+    content = (
+      <p className="todo-message" role="status">
+        No todos yet.
+      </p>
+    );
   } else if (filteredTodos.length === 0) {
-    content = <p className="todo-message">{emptyMessage}</p>;
+    content = (
+      <p className="todo-message" role="status">
+        {emptyMessage}
+      </p>
+    );
   } else {
-    content = <TodoList todos={filteredTodos} />;
+    content = (
+      <Suspense
+        fallback={
+          <div className="todo-message todo-loading" role="status" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            <span>Loading todos...</span>
+          </div>
+        }
+      >
+        <TodoList todos={filteredTodos} />
+      </Suspense>
+    );
   }
 
   return (
     <main className="app">
-      <section className="todo-shell">
+      <section className="todo-shell" aria-labelledby="app-title">
         <header className="app-header">
-          <h1>Webpack Todo App</h1>
+          <h1 id="app-title">Webpack Todo App</h1>
 
           <p>Manage your tasks with React, Webpack and GraphQL.</p>
         </header>
@@ -102,7 +134,7 @@ function App() {
 
         {showTodoTools && (
           <>
-            <div className="todo-toolbar" aria-label="Todo filters">
+            <div className="todo-toolbar" role="group" aria-label="Todo filters">
               {FILTERS.map((filterOption) => (
                 <button
                   key={filterOption.value}
