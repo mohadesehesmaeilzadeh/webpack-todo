@@ -18,6 +18,7 @@ module.exports = (env = {}, argv) => {
       path: path.resolve(__dirname, "dist"),
       filename: isProduction ? "assets/js/[name].[contenthash:8].js" : "bundle.js",
       chunkFilename: isProduction ? "assets/js/[name].[contenthash:8].js" : "[name].js",
+      publicPath: isProduction ? "/webpack-todo/" : "/",
       clean: true,
     },
 
